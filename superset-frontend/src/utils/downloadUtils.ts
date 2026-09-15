@@ -19,10 +19,7 @@
 import { FeatureFlag, isFeatureEnabled } from '@superset-ui/core';
 import { t } from '@apache-superset/core/translation';
 import { logging } from '@apache-superset/core/utils';
-import {
-  addInfoToast,
-  addWarningToast,
-} from 'src/components/MessageToasts/actions';
+import { addInfoToast } from 'src/components/MessageToasts/actions';
 import {
   FORCE_IN_VIEW_EVENT,
   RESTORE_VIRTUALIZATION_EVENT,
@@ -130,6 +127,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 export async function forceLoadAllCharts(
   container: Element,
   onProgress?: (progress: ForceLoadProgress) => void,
+  addWarningToast?: (message: string) => void,
 ): Promise<boolean> {
   const useVirtualization = isFeatureEnabled(
     FeatureFlag.DashboardVirtualization,
@@ -181,7 +179,10 @@ export async function forceLoadAllCharts(
       Math.max(0, deadline - Date.now()),
     );
     if (!allLoaded) {
-      addWarningToast(
+      // The caller's dispatch-bound callback renders the toast; the raw action
+      // creator imported here would only build a Redux action object that is
+      // never dispatched, so the warning would silently disappear.
+      addWarningToast?.(
         t('Some charts did not finish loading. The export may be incomplete.'),
       );
     }

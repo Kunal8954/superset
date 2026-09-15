@@ -21,6 +21,7 @@ import { getInstanceByDom } from 'echarts/core';
 import downloadAsImageOptimized, {
   waitForStableScrollHeight,
 } from './downloadAsImage';
+import { forceLoadAllCharts } from './downloadUtils';
 
 jest.mock('dom-to-image-more', () => ({
   __esModule: true,
@@ -30,6 +31,11 @@ jest.mock('dom-to-image-more', () => ({
 jest.mock('echarts/core', () => ({
   __esModule: true,
   getInstanceByDom: jest.fn(),
+}));
+
+jest.mock('./downloadUtils', () => ({
+  forceLoadAllCharts: jest.fn(),
+  restoreVirtualization: jest.fn(),
 }));
 
 jest.mock('@apache-superset/core/translation', () => ({
@@ -197,6 +203,29 @@ test('waitForStableScrollHeight resolves if scrollHeight throws (element removed
   await expect(promise).resolves.toBeUndefined();
 
   jest.useRealTimers();
+});
+
+test('passes the bound addWarningToast callback into forceLoadAllCharts', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+
+  const handler = downloadAsImageOptimized(
+    'div',
+    'My Chart',
+    undefined,
+    undefined,
+    undefined,
+    mockAddWarningToast,
+  );
+  await handler(syntheticEventFor(container));
+
+  expect(forceLoadAllCharts).toHaveBeenCalledWith(
+    container,
+    undefined,
+    mockAddWarningToast,
+  );
+
+  document.body.removeChild(container);
 });
 
 test('shows warning toast when element is not found', async () => {

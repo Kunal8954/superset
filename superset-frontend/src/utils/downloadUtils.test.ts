@@ -105,7 +105,7 @@ test('forceLoadAllCharts dispatches the force-in-view event and resolves true on
   expect(addWarningToast).not.toHaveBeenCalled();
 });
 
-test('forceLoadAllCharts warns when charts never finish loading before the timeout', async () => {
+test('forceLoadAllCharts calls the bound addWarningToast callback when charts never finish loading before the timeout', async () => {
   jest.useFakeTimers();
   mockIsFeatureEnabled.mockReturnValue(true);
   const container = document.createElement('div');
@@ -113,7 +113,14 @@ test('forceLoadAllCharts warns when charts never finish loading before the timeo
   loadingChart.className = 'loading';
   container.appendChild(loadingChart);
 
-  const promise = forceLoadAllCharts(container);
+  // The caller (downloadAsImage/downloadAsPdf) passes the dispatch-bound toast
+  // callback here; it is the only way the warning actually renders.
+  const boundAddWarningToast = jest.fn();
+  const promise = forceLoadAllCharts(
+    container,
+    undefined,
+    boundAddWarningToast,
+  );
 
   // Advance past the 60s timeout while a `.loading` element is still present.
   await jest.advanceTimersByTimeAsync(61_000);
@@ -121,7 +128,12 @@ test('forceLoadAllCharts warns when charts never finish loading before the timeo
 
   // Virtualization was active, so the caller must still restore it.
   expect(result).toBe(true);
-  expect(addWarningToast).toHaveBeenCalledTimes(1);
+  expect(boundAddWarningToast).toHaveBeenCalledWith(
+    'Some charts did not finish loading. The export may be incomplete.',
+  );
+  // The raw, unbound action creator must not be invoked: it would only build a
+  // Redux action object and never render a toast.
+  expect(addWarningToast).not.toHaveBeenCalled();
 });
 
 test('forceLoadAllCharts dispatches a single force-in-view event when rows fit in one batch', async () => {
@@ -230,7 +242,12 @@ test('forceLoadAllCharts caps the total wait across batches to the overall deadl
   const rowIds = Array.from({ length: 40 }, (_, i) => `row-${i}`);
   rowIds.forEach(id => container.appendChild(makeRow(id, true)));
 
-  const promise = forceLoadAllCharts(container);
+  const boundAddWarningToast = jest.fn();
+  const promise = forceLoadAllCharts(
+    container,
+    undefined,
+    boundAddWarningToast,
+  );
 
   // Comfortably past the 60s overall budget, but far short of the 140s the
   // unbounded, per-timeout-summed behavior would have required.
@@ -238,7 +255,7 @@ test('forceLoadAllCharts caps the total wait across batches to the overall deadl
   const result = await promise;
 
   expect(result).toBe(true);
-  expect(addWarningToast).toHaveBeenCalledTimes(1);
+  expect(boundAddWarningToast).toHaveBeenCalledTimes(1);
 });
 
 test('restoreVirtualization dispatches the restore event', () => {
